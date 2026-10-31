@@ -12,6 +12,7 @@ paper and in many earlier diagnosis-prediction papers (Doctor AI, RETAIN,
 Dipole, GRAM, CGL, Chet).
 """
 
+import math
 from datetime import datetime
 from itertools import pairwise
 from typing import Any, Literal
@@ -20,6 +21,23 @@ from .base_task import BaseTask
 
 CodeLevel = Literal["full", "3digit"]
 SampleMode = Literal["last", "all_prefixes"]
+
+
+def _normalize_id(value: Any) -> str | None:
+    """Returns an identifier as a string, or None if it is missing.
+
+    Numeric identifiers read as floats (``100.0``) become ``"100"``, so that
+    the same ``hadm_id`` matches across tables whatever the column type.
+    """
+    if value is None:
+        return None
+    if isinstance(value, float):
+        if math.isnan(value):
+            return None
+        if value.is_integer():
+            value = int(value)
+    text = str(value).strip()
+    return text or None
 
 
 def truncate_icd9(code: str) -> str:
@@ -118,8 +136,8 @@ class _NextVisitDiagnosisPrediction(BaseTask):
         """Builds the patient's visits as (admission time, codes), oldest first.
 
         Diagnosis events are grouped by ``hadm_id``. Admissions that end up
-        with no kept code are dropped, and duplicate codes within a visit are
-        removed (first occurrence kept).
+        with no kept code, or have no admission time, are dropped, and
+        duplicate codes within a visit are removed (first occurrence kept).
 
         Args:
             patient: A :class:`~pyhealth.data.Patient`.
@@ -130,18 +148,19 @@ class _NextVisitDiagnosisPrediction(BaseTask):
         codes_by_visit: dict[str, list[str]] = {}
         for event in patient.get_events(event_type="diagnoses_icd"):
             code = self._event_code(event)
-            if not code or event.hadm_id is None:
+            hadm_id = _normalize_id(event.hadm_id)
+            if not code or hadm_id is None:
                 continue
             if self.code_level == "3digit":
                 code = truncate_icd9(code)
-            visit_codes = codes_by_visit.setdefault(str(event.hadm_id), [])
+            visit_codes = codes_by_visit.setdefault(hadm_id, [])
             if code not in visit_codes:
                 visit_codes.append(code)
 
         visits = []
         for admission in patient.get_events(event_type="admissions"):
-            codes = codes_by_visit.get(str(admission.hadm_id))
-            if codes:
+            codes = codes_by_visit.get(_normalize_id(admission.hadm_id))
+            if codes and admission.timestamp is not None:
                 visits.append((admission.timestamp, codes))
         visits.sort(key=lambda visit: visit[0])
         return visits

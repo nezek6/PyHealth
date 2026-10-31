@@ -34,7 +34,9 @@ def icd9_ancestor_fn() -> AncestorFn:
 
     Uses :class:`pyhealth.medcode.ICD9CM` (downloaded on first use). Ancestors
     are ordered from the closest (e.g. the 3-digit category) to the farthest
-    (the chapter). Unknown codes have no ancestors.
+    (the chapter). The artificial roots of the code graph (``001-999.99``,
+    ``V01-V91.99``, ``E000-E999.9``), shared by whole code families, are left
+    out. Unknown codes have no ancestors.
 
     Returns:
         A function ``code -> list of ancestor codes``.
@@ -53,7 +55,7 @@ def icd9_ancestor_fn() -> AncestorFn:
         std = ICD9CM.standardize(code)
         if std not in icd9:
             return []
-        return list(icd9.get_ancestors(std))
+        return [a for a in icd9.get_ancestors(std) if icd9.graph.in_degree(a) > 0]
 
     return ancestors
 
@@ -65,10 +67,13 @@ def build_code_levels(
 ) -> tuple[torch.Tensor, list[int]]:
     """Builds the per-level index matrix used by the hierarchical embedding.
 
-    Each code's path is its ancestors from the root down, followed by the code
+    Each code's path is its ancestors from the top down, followed by the code
     itself. Paths shorter than ``num_levels`` repeat their last entry (as in
-    CGL); longer paths keep the ``num_levels - 1`` levels closest to the root
-    plus the code. Index 0 of every level is reserved for "no code".
+    CGL); longer paths keep the ``num_levels - 1`` top levels plus the code,
+    so with ICD-9-CM ancestors from :func:`icd9_ancestor_fn` and ``num_levels
+    = 4`` the levels are chapter, block, 3-digit category and code (a 5-digit
+    code drops its 4-digit parent). Index 0 of every level is reserved for
+    "no code".
 
     Args:
         codes: The code of each vocabulary index. Special tokens (``<pad>``,
@@ -517,6 +522,8 @@ class PhenotypeEncoder(nn.Module):
             visit_emb = torch.cat([visit_emb, gaps], dim=-1)
         hidden, _ = self.gru(visit_emb)
         score = self.attention(hidden).squeeze(-1)
+        # A record with no real visit attends uniformly instead of producing NaN.
+        visit_mask = visit_mask | ~visit_mask.any(-1, keepdim=True)
         score = score.masked_fill(~visit_mask, -math.inf)
         alpha = torch.softmax(score, dim=-1)
         return (alpha.unsqueeze(-1) * hidden).sum(dim=1)
@@ -590,7 +597,13 @@ class SHy(BaseModel):
     released code applies ``nn.MultiheadAttention`` to a ``(batch, K, dim)``
     tensor without ``batch_first`` and so attends across patients; masks are
     deterministic in eval mode (``prob > 0.5``) unless ``stochastic_eval``;
-    and ``omega`` defaults to the paper's 0.04 (the released command uses 0).
+    ``omega`` defaults to the paper's 0.04 (the released command uses 0);
+    ``add_ratio`` and ``temperature`` are shared by the K channels instead of
+    being given per channel; recovery never adds the ``<pad>`` / ``<unk>``
+    tokens. ``y_prob`` is a mixture of softmax outputs and sums to 1 per
+    patient, as in the paper, so rank-based metrics (``recall@k``,
+    ``ndcg@k``) are the right ones; metrics that threshold at 0.5 are not
+    meaningful for this model.
 
     Args:
         dataset: A :class:`~pyhealth.datasets.SampleDataset` with one
@@ -603,8 +616,9 @@ class SHy(BaseModel):
         num_levels: Number of hierarchy levels L (paper 4).
         use_hierarchy: Use hierarchical embeddings; False gives a flat table.
         code_ancestors: Maps a code to its ancestors (closest first). Default
-            None uses :func:`icd9_ancestor_fn`. Pass a dict or function for
-            other vocabularies or for tests.
+            None uses :func:`icd9_ancestor_fn`, which downloads the ICD-9-CM
+            table on first use. Pass a dict or function for other
+            vocabularies or for tests.
         hgnn_dim: Hidden size of each UniGIN head.
         num_heads: Number of UniGIN heads (hidden layers are
             ``hgnn_dim * num_heads`` wide).
@@ -833,6 +847,8 @@ class SHy(BaseModel):
         gaps = None
         if self.use_time_gaps:
             gaps = kwargs[self.time_gap_key].to(self.device).float()
+            if gaps.dim() == 1:
+                gaps = gaps.unsqueeze(0)
             gaps = gaps[:, : inc.num_visits]
 
         phenotypes, latent = [], []
@@ -897,7 +913,8 @@ class SHy(BaseModel):
         target = target.view_as(recon)
         bce = F.binary_cross_entropy(recon, target, reduction="none").mean(-1)
         visit_mask = inc.visit_mask.float()
-        loss_fidelity = (bce * visit_mask).sum() / visit_mask.sum().clamp(min=1)
+        per_patient = (bce * visit_mask).sum(-1) / visit_mask.sum(-1).clamp(min=1)
+        loss_fidelity = per_patient.mean()
 
         if self.num_phenotypes > 1:
             loss_distinct = self._distinctness(state["phenotypes"], inc)

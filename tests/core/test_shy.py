@@ -236,6 +236,27 @@ class TestSHyLayers(unittest.TestCase):
         self.assertNotEqual(levels[2, 1], levels[3, 1])
         self.assertEqual(len(sizes), 3)
 
+    def test_long_paths_keep_top_levels_and_code(self):
+        # Real ICD-9-CM shape: 4-digit codes have 3 ancestors, 5-digit ones 4.
+        ancestors = {
+            "4280": ["428", "420-429", "390-459"],
+            "4290": ["429", "420-429", "390-459"],
+            "25000": ["250.0", "250", "249-259", "240-279"],
+            "25010": ["250.1", "250", "249-259", "240-279"],
+        }
+        levels, _ = build_code_levels(
+            ["<pad>", "4280", "4290", "25000", "25010"],
+            lambda c: ancestors.get(c, []),
+            num_levels=4,
+        )
+        # 428x and 429x share chapter and block but not the category.
+        self.assertEqual(levels[1, :2].tolist(), levels[2, :2].tolist())
+        self.assertNotEqual(levels[1, 2].item(), levels[2, 2].item())
+        # 5-digit codes keep chapter, block, category and the code itself.
+        self.assertEqual(levels[3, :3].tolist(), levels[4, :3].tolist())
+        self.assertNotEqual(levels[3, 3].item(), levels[4, 3].item())
+        self.assertEqual(len(set(levels[:, 3].tolist())), 5)
+
     def test_hierarchical_embedding_shares_ancestors(self):
         levels, sizes = build_code_levels(
             ["<pad>", "4280", "4019"], lambda c: ANCESTORS.get(c, []), 3
@@ -261,6 +282,11 @@ class TestSHyLayers(unittest.TestCase):
         local, shared = conv(torch.randn(inc.num_local, 4), torch.randn(3, 4), inc)
         self.assertEqual(local.shape, (2, 5))
         self.assertEqual(shared.shape, (3, 5))
+
+    def test_encoder_without_real_visits_is_finite(self):
+        enc = PhenotypeEncoder(emb_dim=4, hidden_dim=3)
+        out = enc(torch.randn(1, 2, 4), torch.tensor([[False, False]]))
+        self.assertTrue(bool(torch.isfinite(out).all()))
 
     def test_encoder_ignores_padding_visits(self):
         enc = PhenotypeEncoder(emb_dim=4, hidden_dim=3)
