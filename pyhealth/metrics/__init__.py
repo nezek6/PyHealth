@@ -18,7 +18,7 @@ from .interpretability import (
     evaluate_attribution,
 )
 from .multiclass import multiclass_metrics_fn
-from .multilabel import multilabel_metrics_fn
+from .multilabel import multilabel_metrics_fn, ndcg_at_k, recall_at_k
 from .ranking import ranking_metrics_fn
 from .regression import regression_metrics_fn, timeseries_regression_metrics_fn
 from .survival import (
@@ -49,6 +49,8 @@ __all__ = [
     "ipcw_brier_score",
     "multiclass_metrics_fn",
     "multilabel_metrics_fn",
+    "ndcg_at_k",
+    "recall_at_k",
     "paired_bootstrap_diff",
     "ranking_metrics_fn",
     "regression_metrics_fn",
