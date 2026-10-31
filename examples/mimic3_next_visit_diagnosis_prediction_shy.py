@@ -17,7 +17,8 @@ Experimental setup
   the first 1000 patients.
 * Task: one sample per patient with at least two admissions; input = all
   admissions but the last, label = ICD-9 codes of the last admission.
-* Split: by patient, 80/10/10, seed ``--seed``. Unlike the authors' code,
+* Split: by patient, 80/10/10, seed ``--seed``; code and label
+  vocabularies cover all patients, as in the paper. Unlike the authors' code,
   checkpoints are chosen on validation, never on test.
 * Metrics: Recall@k and nDCG@k (k = 10, 20), as in the paper.
 
@@ -64,7 +65,7 @@ from typing import Any
 
 import torch
 
-from pyhealth.datasets import MIMIC3Dataset, PatientSplit, get_dataloader
+from pyhealth.datasets import MIMIC3Dataset, get_dataloader, split_by_patient
 from pyhealth.models import RETAIN, SHy
 from pyhealth.tasks import NextVisitDiagnosisPredictionMIMIC3
 from pyhealth.trainer import Trainer
@@ -207,10 +208,11 @@ def run(
     label, model_name, model_kwargs, task_kwargs, lr = config
     key = repr(sorted(task_kwargs.items()))
     if key not in cache:
-        cache[key] = dataset.set_task(
-            NextVisitDiagnosisPredictionMIMIC3(**task_kwargs),
-            split=PatientSplit(ratios=(0.8, 0.1, 0.1), seed=args.seed),
-        )
+        # Processors (code and label vocabularies) are fit on all samples so
+        # every test label has an output unit, as in the paper (which keeps
+        # all codes in the label space); the patient split comes after.
+        samples = dataset.set_task(NextVisitDiagnosisPredictionMIMIC3(**task_kwargs))
+        cache[key] = split_by_patient(samples, (0.8, 0.1, 0.1), seed=args.seed)
     train, val, test = cache[key]
 
     torch.manual_seed(args.seed)
