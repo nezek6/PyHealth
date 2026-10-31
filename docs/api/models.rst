@@ -221,6 +221,7 @@ API Reference
     models/pyhealth.models.GraphCare
     models/pyhealth.models.MICRON
     models/pyhealth.models.SafeDrug
+    models/pyhealth.models.SHy
     models/pyhealth.models.MoleRec
     models/pyhealth.models.Deepr
     models/pyhealth.models.EHRMamba
