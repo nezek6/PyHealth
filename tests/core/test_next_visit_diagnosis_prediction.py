@@ -90,6 +90,24 @@ class TestNextVisitDiagnosisPredictionMIMIC3(unittest.TestCase):
         self.assertEqual(sample["conditions"], [["1"], ["2"]])
         self.assertEqual(sample["next_conditions"], ["3"])
 
+    def test_float_and_int_hadm_ids_match(self):
+        patient = make_patient("p7", [(100, T1, ["1"]), (200, T2, ["2"])])
+        patient.data_source = patient.data_source.with_columns(
+            pl.col("diagnoses_icd/hadm_id").cast(pl.Float64)
+        )
+        patient = Patient("p7", patient.data_source)
+        sample = NextVisitDiagnosisPredictionMIMIC3()(patient)[0]
+        self.assertEqual(sample["conditions"], [["1"]])
+        self.assertEqual(sample["next_conditions"], ["2"])
+
+    def test_admission_without_time_is_skipped(self):
+        patient = make_patient(
+            "p8", [("h1", T1, ["1"]), ("h2", None, ["2"]), ("h3", T3, ["3"])]
+        )
+        sample = NextVisitDiagnosisPredictionMIMIC3()(patient)[0]
+        self.assertEqual(sample["conditions"], [["1"]])
+        self.assertEqual(sample["next_conditions"], ["3"])
+
     def test_visit_without_codes_is_skipped(self):
         patient = make_patient(
             "p4", [("h1", T1, ["1"]), ("h2", T2, []), ("h3", T3, ["3"])]
