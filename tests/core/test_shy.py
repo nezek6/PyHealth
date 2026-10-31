@@ -9,6 +9,8 @@ ICD-9 table is downloaded) and tiny layer sizes, so every test runs in
 milliseconds.
 """
 
+import os
+import tempfile
 import unittest
 
 import torch
@@ -205,6 +207,20 @@ class TestSHy(unittest.TestCase):
         with torch.no_grad():
             out = model(**self.batch)
         torch.testing.assert_close(out["loss"], out["loss_pred"])
+
+    def test_checkpoint_round_trip(self):
+        model = self.make_model()
+        model.eval()
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "shy.pt")
+            torch.save(model.state_dict(), path)
+            restored = self.make_model()
+            restored.load_state_dict(torch.load(path))
+        restored.eval()
+        with torch.no_grad():
+            torch.testing.assert_close(
+                model(**self.batch)["y_prob"], restored(**self.batch)["y_prob"]
+            )
 
 
 class TestSHyLayers(unittest.TestCase):
