@@ -1,6 +1,6 @@
 """Next-visit diagnosis prediction on MIMIC-III and MIMIC-IV.
 
-Contributor: Alon (NetID: alonl2, alonl2@illinois.edu)
+Contributor: Alon Levy (NetID: alonl2, alonl2@illinois.edu)
 Paper: Leisheng Yu, Yanxiao Cai, Minxing Zhang, Xia Hu. "Self-Explaining
     Hypergraph Neural Networks for Diagnosis Prediction." CHIL 2025 (PMLR 287).
 Paper link: https://arxiv.org/abs/2502.10689

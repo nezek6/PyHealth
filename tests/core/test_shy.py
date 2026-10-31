@@ -1,6 +1,6 @@
 """Tests for the SHy model.
 
-Contributor: Alon (NetID: alonl2, alonl2@illinois.edu)
+Contributor: Alon Levy (NetID: alonl2, alonl2@illinois.edu)
 Paper: "Self-Explaining Hypergraph Neural Networks for Diagnosis Prediction"
     (Yu et al., CHIL 2025), https://arxiv.org/abs/2502.10689
 
