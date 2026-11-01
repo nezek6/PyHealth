@@ -149,11 +149,21 @@ class TestSHy(unittest.TestCase):
         self.assertNotIn("loss", out)
         self.assertEqual(out["y_prob"].shape, (3, self.num_labels))
 
-    def test_eval_is_deterministic(self):
-        model = self.make_model()
+    def test_eval_is_deterministic_without_sampling(self):
+        model = self.make_model(stochastic_eval=False)
         model.eval()
         with torch.no_grad():
             a = model(**self.batch)["y_prob"]
+            b = model(**self.batch)["y_prob"]
+        torch.testing.assert_close(a, b)
+
+    def test_eval_sampling_is_seeded(self):
+        model = self.make_model()
+        model.eval()
+        with torch.no_grad():
+            torch.manual_seed(0)
+            a = model(**self.batch)["y_prob"]
+            torch.manual_seed(0)
             b = model(**self.batch)["y_prob"]
         torch.testing.assert_close(a, b)
 
@@ -209,12 +219,12 @@ class TestSHy(unittest.TestCase):
         torch.testing.assert_close(out["loss"], out["loss_pred"])
 
     def test_checkpoint_round_trip(self):
-        model = self.make_model()
+        model = self.make_model(stochastic_eval=False)
         model.eval()
         with tempfile.TemporaryDirectory() as tmp:
             path = os.path.join(tmp, "shy.pt")
             torch.save(model.state_dict(), path)
-            restored = self.make_model()
+            restored = self.make_model(stochastic_eval=False)
             restored.load_state_dict(torch.load(path))
         restored.eval()
         with torch.no_grad():
