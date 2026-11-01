@@ -603,9 +603,9 @@ class SHy(BaseModel):
       to a ``(batch, K, dim)`` tensor without ``batch_first`` and so attends
       across patients.
     * ``omega`` defaults to 0, the value the authors' released training
-      command passes. Their README table lists 0.04, which flattens the
-      phenotype attention to uniform weights and cost about 0.1 Recall@20
-      on MIMIC-III in our runs.
+      command passes; their README table lists 0.04. On MIMIC-III the two
+      scored within seed noise of each other (0.04 was +0.009 Recall@20 on
+      one seed), and 0.04 spreads the phenotype weights more evenly.
     * ``stochastic_eval=False`` offers deterministic eval masks
       (``prob > 0.5``), which the released code has no equivalent of; they
       score clearly lower because the learned keep probabilities are mostly

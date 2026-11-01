@@ -37,8 +37,7 @@ Ablations and extensions (none of them is in the paper)
 * ``phenotypes`` number of phenotypes K in {3, 5, 8} (the paper only
   compares K = 1 and 5).
 * ``omega``     alpha-loss weight 0.04 (the authors' README table) vs the
-  ``baseline`` run's 0 (their released training command). On MIMIC-III
-  0.04 flattens the phenotype attention and costs about 0.1 Recall@20.
+  ``baseline`` run's 0 (their released training command).
 * ``hparams``   learning rate, hidden size and dropout grid for SHy.
 * ``time_gaps`` extension: log(1 + days since previous visit) fed to the
   phenotype GRU.
