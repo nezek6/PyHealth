@@ -36,8 +36,9 @@ Ablations and extensions (none of them is in the paper)
 * ``hierarchy`` hierarchical ICD-9 embeddings vs a flat embedding table.
 * ``phenotypes`` number of phenotypes K in {3, 5, 8} (the paper only
   compares K = 1 and 5).
-* ``omega``     alpha-loss weight 0 (the authors' released command passes 0;
-  their README table says 0.04). Compare with the ``baseline`` SHy run.
+* ``omega``     alpha-loss weight 0.04 (the authors' README table) vs the
+  ``baseline`` run's 0 (their released training command). On MIMIC-III
+  0.04 flattens the phenotype attention and costs about 0.1 Recall@20.
 * ``hparams``   learning rate, hidden size and dropout grid for SHy.
 * ``time_gaps`` extension: log(1 + days since previous visit) fed to the
   phenotype GRU.
@@ -82,7 +83,8 @@ from pyhealth.trainer import Trainer
 SYNTHETIC_ROOT = "https://storage.googleapis.com/pyhealth/Synthetic_MIMIC-III"
 METRICS = ["recall@10", "recall@20", "ndcg@10", "ndcg@20"]
 
-# Paper settings (README of the authors' code, MIMIC-III column).
+# Paper settings (README of the authors' code, MIMIC-III column), except that
+# the alpha-loss weight follows their training command (0), see ``omega``.
 SHY_PAPER = {
     "dim_per_level": 32,
     "num_levels": 4,
@@ -98,7 +100,7 @@ SHY_PAPER = {
     "key_dim": 256,
     "num_attention_heads": 8,
     "dropout": 0.001,
-    "loss_weights": (0.003, 0.00025, 0.04),
+    "loss_weights": (0.003, 0.00025, 0.0),  # README table: 0.04; command: 0
 }
 # Small settings for --quick runs on CPU.
 SHY_QUICK = dict(
@@ -162,11 +164,17 @@ def experiment_configs(name: str, shy: dict[str, Any], lr: float) -> list[Config
             (f"SHy K={k}", "SHy", variant(num_phenotypes=k), {}, lr) for k in (3, 5, 8)
         ]
     if name == "omega":
-        # omega = 0.04 is the baseline run; only the released-command value is
-        # trained here (the authors' command passes 0 for the alpha-loss weight).
+        # omega = 0 (the authors' released command) is the baseline run; the
+        # README table's 0.04 is trained here for comparison.
         weights = shy["loss_weights"]
         return [
-            ("SHy omega=0", "SHy", variant(loss_weights=weights[:2] + (0.0,)), {}, lr),
+            (
+                "SHy omega=0.04",
+                "SHy",
+                variant(loss_weights=weights[:2] + (0.04,)),
+                {},
+                lr,
+            ),
         ]
     if name == "hparams":
         runs = [(f"SHy lr={x}", "SHy", shy, {}, x) for x in (1e-3, 1e-4)]

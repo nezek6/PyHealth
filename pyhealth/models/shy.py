@@ -603,7 +603,10 @@ class SHy(BaseModel):
     ``stochastic_eval=False`` offers deterministic eval masks (``prob >
     0.5``), which the released code has no equivalent of and which score
     clearly lower because the learned keep probabilities are mostly below
-    0.5; ``omega`` defaults to the paper's 0.04 (the released command uses 0);
+    0.5; ``omega`` defaults to 0, the value the authors' released training
+    command passes (their README table lists 0.04, which flattens the
+    phenotype attention to uniform weights and cost about 0.1 Recall@20 on
+    MIMIC-III in our runs);
     ``add_ratio`` and ``temperature`` are shared by the K channels instead of
     being given per channel; recovery never adds the ``<pad>`` / ``<unk>``
     tokens. ``y_prob`` is a mixture of softmax outputs and sums to 1 per
@@ -643,7 +646,8 @@ class SHy(BaseModel):
         dropout: Dropout after each hidden UniGIN layer.
         use_time_gaps: Feed visit time gaps to the phenotype GRU (extension).
         loss_weights: ``(eps, eta, omega)`` weights of the fidelity,
-            distinctness and alpha losses. Paper: ``(0.003, 0.00025, 0.04)``.
+            distinctness and alpha losses. Default ``(0.003, 0.00025, 0.0)``,
+            the authors' released command; their README lists ``omega=0.04``.
         stochastic_eval: Sample phenotype masks in eval mode (default, as in
             the authors' evaluation; seed torch for reproducible scores).
             False uses deterministic ``prob > 0.5`` masks.
@@ -694,7 +698,7 @@ class SHy(BaseModel):
         num_attention_heads: int = 8,
         dropout: float = 0.001,
         use_time_gaps: bool = False,
-        loss_weights: tuple[float, float, float] = (0.003, 0.00025, 0.04),
+        loss_weights: tuple[float, float, float] = (0.003, 0.00025, 0.0),
         stochastic_eval: bool = True,
     ) -> None:
         super().__init__(dataset)
