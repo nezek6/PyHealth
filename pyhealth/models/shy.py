@@ -604,7 +604,7 @@ class SHy(BaseModel):
     * ``omega`` defaults to 0, the value the authors' released training
       command passes; their README table lists 0.04. On MIMIC-III the two
       scored within seed noise of each other (0.04 was +0.009 Recall@20 on
-      one seed), and 0.04 spreads the phenotype weights more evenly.
+      one seed).
     * ``stochastic_eval=False`` offers deterministic eval masks
       (``prob > 0.5``), which the released code has no equivalent of and
       which score clearly lower (0.24 vs 0.37 Recall@20 on MIMIC-III).
