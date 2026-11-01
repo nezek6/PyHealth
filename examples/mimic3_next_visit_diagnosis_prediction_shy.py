@@ -20,6 +20,10 @@ Experimental setup
 * Split: by patient, 80/10/10, seed ``--seed``; code and label
   vocabularies cover all patients, as in the paper. Unlike the authors' code,
   checkpoints are chosen on validation, never on test.
+* Training: Adam, lr 1e-4, batch 128, up to ``--epochs`` (default 300; the
+  authors allow 450) with early stopping after ``--patience`` epochs (default
+  25) without a validation Recall@20 improvement. With 50 epochs both RETAIN
+  and SHy are still improving, so shorter budgets understate both.
 * Metrics: Recall@k and nDCG@k (k = 10, 20), as in the paper.
 
 Ablations and extensions (none of them is in the paper)
@@ -32,7 +36,8 @@ Ablations and extensions (none of them is in the paper)
 * ``hierarchy`` hierarchical ICD-9 embeddings vs a flat embedding table.
 * ``phenotypes`` number of phenotypes K in {3, 5, 8} (the paper only
   compares K = 1 and 5).
-* ``omega``     alpha-loss weight 0.04 (paper table) vs 0 (released command).
+* ``omega``     alpha-loss weight 0 (the authors' released command passes 0;
+  their README table says 0.04). Compare with the ``baseline`` SHy run.
 * ``hparams``   learning rate, hidden size and dropout grid for SHy.
 * ``time_gaps`` extension: log(1 + days since previous visit) fed to the
   phenotype GRU.
@@ -152,15 +157,10 @@ def experiment_configs(name: str, shy: dict[str, Any], lr: float) -> list[Config
             (f"SHy K={k}", "SHy", variant(num_phenotypes=k), {}, lr) for k in (3, 5, 8)
         ]
     if name == "omega":
+        # omega = 0.04 is the baseline run; only the released-command value is
+        # trained here (the authors' command passes 0 for the alpha-loss weight).
         weights = shy["loss_weights"]
         return [
-            (
-                "SHy omega=0.04",
-                "SHy",
-                variant(loss_weights=weights[:2] + (0.04,)),
-                {},
-                lr,
-            ),
             ("SHy omega=0", "SHy", variant(loss_weights=weights[:2] + (0.0,)), {}, lr),
         ]
     if name == "hparams":
@@ -271,8 +271,8 @@ def main() -> None:
         ],
     )
     parser.add_argument("--quick", action="store_true", help="small model, 2 epochs")
-    parser.add_argument("--epochs", type=int, default=50)
-    parser.add_argument("--patience", type=int, default=10)
+    parser.add_argument("--epochs", type=int, default=300)
+    parser.add_argument("--patience", type=int, default=25)
     parser.add_argument("--batch-size", type=int, default=128)
     parser.add_argument("--lr", type=float, default=1e-4)
     parser.add_argument("--seed", type=int, default=0)
