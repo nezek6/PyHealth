@@ -43,6 +43,10 @@ Ablations and extensions (none of them is in the paper)
   phenotype GRU.
 * ``task``      task configuration with RETAIN: history length
   ``max_visits`` in {all, 3, 1} and 3-digit vs full codes.
+* ``protocol``  reproduction check: RETAIN and SHy under the authors'
+  protocol (90/10 patient split, no validation set, checkpoint chosen on
+  the test split as their ``training.py`` does). Only for comparison with
+  the ``baseline`` rows; the test score is optimistic by construction.
 
 Results are printed as a table and saved to ``<output>/results.csv``.
 
@@ -108,7 +112,8 @@ SHY_QUICK = dict(
     num_attention_heads=4,
 )
 
-# (name, model, model kwargs, task kwargs, learning rate)
+# (name, model, model kwargs, task kwargs, learning rate). The task kwargs may
+# carry the special key ``_protocol`` ("validation", default, or "authors").
 Config = tuple[str, str, dict[str, Any], dict[str, Any], float]
 
 
@@ -185,6 +190,12 @@ def experiment_configs(name: str, shy: dict[str, Any], lr: float) -> list[Config
             ("RETAIN max_visits=1", "RETAIN", {}, {"max_visits": 1}, lr),
             ("RETAIN 3-digit codes", "RETAIN", {}, {"code_level": "3digit"}, lr),
         ]
+    if name == "protocol":
+        authors = {"_protocol": "authors"}
+        return [
+            ("RETAIN authors' protocol", "RETAIN", {}, authors, lr),
+            ("SHy authors' protocol", "SHy", shy, authors, lr),
+        ]
     raise ValueError(f"Unknown experiment {name!r}.")
 
 
@@ -206,14 +217,21 @@ def run(
         A result row with the label, the test metrics and the run time.
     """
     label, model_name, model_kwargs, task_kwargs, lr = config
-    key = repr(sorted(task_kwargs.items()))
+    task_kwargs = dict(task_kwargs)
+    protocol = task_kwargs.pop("_protocol", "validation")
+    key = repr((protocol, sorted(task_kwargs.items())))
     if key not in cache:
         # Processors (code and label vocabularies) are fit on all samples so
         # every test label has an output unit, as in the paper (which keeps
         # all codes in the label space); the patient split comes after.
         samples = dataset.set_task(NextVisitDiagnosisPredictionMIMIC3(**task_kwargs))
-        cache[key] = split_by_patient(samples, (0.8, 0.1, 0.1), seed=args.seed)
+        ratios = (0.9, 0.0, 0.1) if protocol == "authors" else (0.8, 0.1, 0.1)
+        cache[key] = split_by_patient(samples, ratios, seed=args.seed)
     train, val, test = cache[key]
+    if protocol == "authors":
+        # The authors' code has no validation set and selects on the test
+        # split; reproduced here only as a labelled comparison row.
+        val = test
 
     torch.manual_seed(args.seed)
     if model_name == "RETAIN":
@@ -267,6 +285,7 @@ def main() -> None:
             "hparams",
             "time_gaps",
             "task",
+            "protocol",
             "all",
         ],
     )
@@ -295,6 +314,7 @@ def main() -> None:
             "hparams",
             "time_gaps",
             "task",
+            "protocol",
         ]
 
     dataset = MIMIC3Dataset(
