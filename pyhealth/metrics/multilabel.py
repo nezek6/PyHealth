@@ -8,6 +8,7 @@ import pyhealth.metrics.calibration as calib
 from pyhealth.metrics import ddi_rate_score
 from pyhealth import BASE_CACHE_PATH as CACHE_PATH
 
+
 def _top_k_indices(y_prob: np.ndarray, k: int) -> np.ndarray:
     """Indices of the ``k`` highest scores of each row, best first.
 
@@ -38,7 +39,7 @@ def recall_at_k(y_true: np.ndarray, y_prob: np.ndarray, k: int) -> float:
         >>> import numpy as np
         >>> y_true = np.array([[0, 1, 1], [1, 0, 0]])
         >>> y_prob = np.array([[0.1, 0.9, 0.2], [0.3, 0.6, 0.1]])
-        >>> float(recall_at_k(y_true, y_prob, k=1))
+        >>> recall_at_k(y_true, y_prob, k=1)
         0.25
     """
     if k < 1:
@@ -73,7 +74,7 @@ def ndcg_at_k(y_true: np.ndarray, y_prob: np.ndarray, k: int) -> float:
         >>> import numpy as np
         >>> y_true = np.array([[0, 1, 1]])
         >>> y_prob = np.array([[0.1, 0.9, 0.8]])
-        >>> float(ndcg_at_k(y_true, y_prob, k=2))
+        >>> ndcg_at_k(y_true, y_prob, k=2)
         1.0
     """
     if k < 1:
