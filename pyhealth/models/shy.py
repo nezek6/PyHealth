@@ -311,8 +311,11 @@ class PhenotypeExtractor(nn.Module):
        instead, a control for the recovery ablation.
     2. Masking (paper Eqs. 6-8): an MLP scores each incidence of the enriched
        hypergraph and a straight-through relaxed Bernoulli (Gumbel) sample
-       keeps or drops it. In eval mode the mask is ``prob > 0.5`` unless
-       ``stochastic_eval`` is set.
+       keeps or drops it. Masks are sampled in eval mode too (the authors
+       evaluate with sampled masks). With ``stochastic_eval=False`` the eval
+       mask is the deterministic ``prob > 0.5``; because the distinctness
+       loss drives keep probabilities well below 0.5, that rule keeps very
+       few codes and scores clearly lower on MIMIC-III.
 
     Args:
         emb_dim: Code embedding size after message passing.
@@ -321,7 +324,8 @@ class PhenotypeExtractor(nn.Module):
         temperature: Gumbel-Softmax temperature.
         mlp_dim: Hidden size of the masking MLP.
         random_links: Add random instead of similarity-ranked links.
-        stochastic_eval: Sample masks in eval mode too.
+        stochastic_eval: Sample masks in eval mode (default, as the authors
+            do). False uses the deterministic ``prob > 0.5`` mask.
 
     Examples:
         >>> ext = PhenotypeExtractor(emb_dim=8, num_cos_heads=2, add_ratio=0.5)
@@ -337,7 +341,7 @@ class PhenotypeExtractor(nn.Module):
         temperature: float = 1.0,
         mlp_dim: int = 256,
         random_links: bool = False,
-        stochastic_eval: bool = False,
+        stochastic_eval: bool = True,
     ) -> None:
         super().__init__()
         if add_ratio < 0:
@@ -595,9 +599,11 @@ class SHy(BaseModel):
     Differences from the authors' code, all deliberate: self-attention runs
     over the K phenotypes of each patient (``batch_first``), whereas the
     released code applies ``nn.MultiheadAttention`` to a ``(batch, K, dim)``
-    tensor without ``batch_first`` and so attends across patients; masks are
-    deterministic in eval mode (``prob > 0.5``) unless ``stochastic_eval``;
-    ``omega`` defaults to the paper's 0.04 (the released command uses 0);
+    tensor without ``batch_first`` and so attends across patients;
+    ``stochastic_eval=False`` offers deterministic eval masks (``prob >
+    0.5``), which the released code has no equivalent of and which score
+    clearly lower because the learned keep probabilities are mostly below
+    0.5; ``omega`` defaults to the paper's 0.04 (the released command uses 0);
     ``add_ratio`` and ``temperature`` are shared by the K channels instead of
     being given per channel; recovery never adds the ``<pad>`` / ``<unk>``
     tokens. ``y_prob`` is a mixture of softmax outputs and sums to 1 per
@@ -638,7 +644,9 @@ class SHy(BaseModel):
         use_time_gaps: Feed visit time gaps to the phenotype GRU (extension).
         loss_weights: ``(eps, eta, omega)`` weights of the fidelity,
             distinctness and alpha losses. Paper: ``(0.003, 0.00025, 0.04)``.
-        stochastic_eval: Sample phenotype masks in eval mode too.
+        stochastic_eval: Sample phenotype masks in eval mode (default, as in
+            the authors' evaluation; seed torch for reproducible scores).
+            False uses deterministic ``prob > 0.5`` masks.
 
     Examples:
         >>> from pyhealth.datasets import create_sample_dataset
@@ -687,7 +695,7 @@ class SHy(BaseModel):
         dropout: float = 0.001,
         use_time_gaps: bool = False,
         loss_weights: tuple[float, float, float] = (0.003, 0.00025, 0.04),
-        stochastic_eval: bool = False,
+        stochastic_eval: bool = True,
     ) -> None:
         super().__init__(dataset)
         if len(self.label_keys) != 1:
