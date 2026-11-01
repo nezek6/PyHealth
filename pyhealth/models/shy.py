@@ -596,23 +596,27 @@ class SHy(BaseModel):
        (paper Eq. 16), where the fidelity term reconstructs the input with
        :class:`FidelityDecoder`.
 
-    Differences from the authors' code, all deliberate: self-attention runs
-    over the K phenotypes of each patient (``batch_first``), whereas the
-    released code applies ``nn.MultiheadAttention`` to a ``(batch, K, dim)``
-    tensor without ``batch_first`` and so attends across patients;
-    ``stochastic_eval=False`` offers deterministic eval masks (``prob >
-    0.5``), which the released code has no equivalent of and which score
-    clearly lower because the learned keep probabilities are mostly below
-    0.5; ``omega`` defaults to 0, the value the authors' released training
-    command passes (their README table lists 0.04, which flattens the
-    phenotype attention to uniform weights and cost about 0.1 Recall@20 on
-    MIMIC-III in our runs);
-    ``add_ratio`` and ``temperature`` are shared by the K channels instead of
-    being given per channel; recovery never adds the ``<pad>`` / ``<unk>``
-    tokens. ``y_prob`` is a mixture of softmax outputs and sums to 1 per
-    patient, as in the paper, so rank-based metrics (``recall@k``,
-    ``ndcg@k``) are the right ones; metrics that threshold at 0.5 are not
-    meaningful for this model.
+    Deliberate differences from the authors' code:
+
+    * Self-attention runs over the K phenotypes of each patient
+      (``batch_first``); the released code applies ``nn.MultiheadAttention``
+      to a ``(batch, K, dim)`` tensor without ``batch_first`` and so attends
+      across patients.
+    * ``omega`` defaults to 0, the value the authors' released training
+      command passes. Their README table lists 0.04, which flattens the
+      phenotype attention to uniform weights and cost about 0.1 Recall@20
+      on MIMIC-III in our runs.
+    * ``stochastic_eval=False`` offers deterministic eval masks
+      (``prob > 0.5``), which the released code has no equivalent of; they
+      score clearly lower because the learned keep probabilities are mostly
+      below 0.5.
+    * ``add_ratio`` and ``temperature`` are shared by the K channels instead
+      of being given per channel, and recovery never adds the ``<pad>`` /
+      ``<unk>`` tokens.
+
+    ``y_prob`` is a mixture of softmax outputs and sums to 1 per patient, as
+    in the paper, so rank-based metrics (``recall@k``, ``ndcg@k``) are the
+    right ones; metrics that threshold at 0.5 are not meaningful here.
 
     Args:
         dataset: A :class:`~pyhealth.datasets.SampleDataset` with one
