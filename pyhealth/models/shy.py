@@ -313,9 +313,8 @@ class PhenotypeExtractor(nn.Module):
        hypergraph and a straight-through relaxed Bernoulli (Gumbel) sample
        keeps or drops it. Masks are sampled in eval mode too (the authors
        evaluate with sampled masks). With ``stochastic_eval=False`` the eval
-       mask is the deterministic ``prob > 0.5``; because the distinctness
-       loss drives keep probabilities well below 0.5, that rule keeps very
-       few codes and scores clearly lower on MIMIC-III.
+       mask is the deterministic ``prob > 0.5``, which scores clearly lower
+       on MIMIC-III.
 
     Args:
         emb_dim: Code embedding size after message passing.
@@ -607,9 +606,8 @@ class SHy(BaseModel):
       scored within seed noise of each other (0.04 was +0.009 Recall@20 on
       one seed), and 0.04 spreads the phenotype weights more evenly.
     * ``stochastic_eval=False`` offers deterministic eval masks
-      (``prob > 0.5``), which the released code has no equivalent of; they
-      score clearly lower because the learned keep probabilities are mostly
-      below 0.5.
+      (``prob > 0.5``), which the released code has no equivalent of and
+      which score clearly lower (0.24 vs 0.37 Recall@20 on MIMIC-III).
     * ``add_ratio`` and ``temperature`` are shared by the K channels instead
       of being given per channel, and recovery never adds the ``<pad>`` /
       ``<unk>`` tokens.
