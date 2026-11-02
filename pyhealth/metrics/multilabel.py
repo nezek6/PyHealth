@@ -318,8 +318,8 @@ def multilabel_metrics_fn(
                 adaptive=metric.endswith("_adapt"),
                 threshold=0.0,
             )
-        elif _parse_at_k(metric) is not None:
-            name, k = _parse_at_k(metric)
+        elif (at_k := _parse_at_k(metric)) is not None:
+            name, k = at_k
             fn = recall_at_k if name == "recall" else ndcg_at_k
             output[metric] = fn(y_true, y_prob, k)
         elif metric in prediction_set_metrics:

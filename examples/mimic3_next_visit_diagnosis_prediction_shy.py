@@ -48,6 +48,9 @@ Ablations and extensions (none of them is in the paper)
   the test split as their ``training.py`` does). Only for comparison with
   the ``baseline`` rows; the test score is optimistic by construction.
 
+Every group retrains its control row (the ``baseline`` configuration) so it
+is self-contained; the repeated runs double as a run-to-run noise estimate.
+
 Results are printed as a table and saved to ``<output>/results.csv``.
 
 Findings

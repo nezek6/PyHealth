@@ -211,6 +211,19 @@ class TestSHy(unittest.TestCase):
         with self.assertRaises(ValueError):
             SHy(self.dataset, use_time_gaps=True, **SMALL)
 
+    def test_invalid_arguments(self):
+        with self.assertRaises(ValueError):
+            self.make_model(loss_weights=(0.003, 0.00025))
+        model = self.make_model()
+        batch = dict(self.batch, conditions=self.batch["conditions"][0])
+        with self.assertRaises(ValueError):
+            model(**batch)
+
+    def test_explain_restores_training_mode(self):
+        model = self.make_model().train()
+        model.explain(**self.batch)
+        self.assertTrue(model.training)
+
     def test_loss_weights_zero_gives_prediction_loss(self):
         model = self.make_model(loss_weights=(0.0, 0.0, 0.0))
         model.eval()
