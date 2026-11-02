@@ -112,8 +112,9 @@ noise):
 * omega = 0.04 vs 0 is within noise.
 * The SHy rows above were trained before the commit that keeps the V and
   E chapters in the ICD-9 hierarchy (previously those codes started one
-  level lower); it changes one of four embedding levels for about a tenth
-  of the codes and nothing else.
+  level lower). Rerun after it, the hierarchy group scored 0.2691 /
+  0.3720 / 0.4075 / 0.4002 (hierarchical) and 0.2649 / 0.3605 / 0.4040 /
+  0.3918 (flat), inside the run-to-run noise of the rows above.
 
 Usage:
     python examples/mimic3_next_visit_diagnosis_prediction_shy.py --quick
