@@ -25,6 +25,7 @@ from torch import nn
 
 from pyhealth.datasets import SampleDataset
 from pyhealth.models.base_model import BaseModel
+from pyhealth.processors import NestedSequenceProcessor
 
 AncestorFn = Callable[[str], list[str]]
 
@@ -721,8 +722,12 @@ class SHy(BaseModel):
         self.num_phenotypes = num_phenotypes
         self.use_time_gaps = use_time_gaps
         self.loss_weights = tuple(loss_weights)
+        if len(self.loss_weights) != 3:
+            raise ValueError("loss_weights must be (epsilon, eta, omega).")
 
         processor = dataset.input_processors[feature_key]
+        if not isinstance(processor, NestedSequenceProcessor):
+            raise TypeError(f"Input {feature_key!r} must be a nested_sequence.")
         vocab = processor.code_vocab
         self.codes = [code for code, _ in sorted(vocab.items(), key=lambda x: x[1])]
         self.num_codes = len(self.codes)
@@ -851,8 +856,10 @@ class SHy(BaseModel):
     def _phenotypes(self, **kwargs) -> dict[str, object]:
         """Shared forward computation up to the phenotype embeddings."""
         codes = kwargs[self.feature_key].to(self.device).long()
-        if codes.dim() == 2:
-            codes = codes.unsqueeze(0)
+        if codes.dim() != 3:
+            raise ValueError(
+                f"Expected a (batch, visits, codes) input, got {tuple(codes.shape)}."
+            )
         inc = Incidences(codes, self.num_codes)
         x0 = self.code_embedding()
         x_local, x_shared = self._encode_codes(inc, x0)
@@ -861,8 +868,10 @@ class SHy(BaseModel):
         gaps = None
         if self.use_time_gaps:
             gaps = kwargs[self.time_gap_key].to(self.device).float()
-            if gaps.dim() == 1:
-                gaps = gaps.unsqueeze(0)
+            if gaps.dim() != 2 or gaps.shape[1] < inc.num_visits:
+                raise ValueError(
+                    f"{self.time_gap_key!r} must be (batch, visits), got {gaps.shape}."
+                )
             gaps = gaps[:, : inc.num_visits]
 
         phenotypes, latent = [], []
@@ -967,9 +976,14 @@ class SHy(BaseModel):
             >>> explanations[0]["weights"]  # doctest: +SKIP
             [0.31, 0.12, 0.22, 0.2, 0.15]
         """
-        state = self._phenotypes(**kwargs)
+        was_training = self.training
+        self.eval()
+        try:
+            state = self._phenotypes(**kwargs)
+            _, alpha = self._fuse(state["latent"])
+        finally:
+            self.train(was_training)
         inc: Incidences = state["inc"]
-        _, alpha = self._fuse(state["latent"])
         out: list[dict[str, object]] = [
             {"weights": alpha[b].tolist(), "phenotypes": []}
             for b in range(inc.batch_size)
