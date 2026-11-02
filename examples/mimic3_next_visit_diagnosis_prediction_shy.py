@@ -55,13 +55,65 @@ Results are printed as a table and saved to ``<output>/results.csv``.
 
 Findings
 --------
-TODO: fill in after the MIMIC-III runs (mean of 3 seeds, test split):
+MIMIC-III v1.4, 7,499 patients with at least two admissions (80/10/10
+split, 3,622 label codes), test split. Mean and std over seeds 0-2, 300
+epochs, patience 25, one T4 (41-61 minutes per run):
 
     =========================  =========  =========  =======  =======
     configuration              Recall@10  Recall@20  nDCG@10  nDCG@20
     =========================  =========  =========  =======  =======
-    paper SHy (Table 1)            -        0.3831      -        -
+    paper RETAIN (Table 1)        0.2024     0.2958    0.3136   0.3167
+    paper SHy (Table 1)           0.2775     0.3831    0.4135   0.4088
+    RETAIN (3 seeds)              0.2598     0.3506    0.4196   0.4008
+                                 +-0.0069   +-0.0086  +-0.0077 +-0.0075
+    SHy (3 seeds)                 0.2615     0.3600    0.4067   0.3956
+                                 +-0.0035   +-0.0043  +-0.0061 +-0.0048
+    RETAIN, authors' protocol     0.2753     0.3690    0.4277   0.4103
+    SHy, authors' protocol        0.2688     0.3731    0.4074   0.4000
     =========================  =========  =========  =======  =======
+
+Ablations, seed 0 only (identical SHy configurations rerun in different
+groups scored 0.3630-0.3701 Recall@20, so differences below ~0.007 are
+noise):
+
+    =========================  =========  =========  =======  =======
+    configuration              Recall@10  Recall@20  nDCG@10  nDCG@20
+    =========================  =========  =========  =======  =======
+    SHy omega=0.04                0.2657     0.3723    0.4068   0.3989
+    SHy add_ratio=0.0             0.2685     0.3713    0.4090   0.3993
+    SHy add_ratio=0.1             0.2672     0.3658    0.4090   0.3976
+    SHy add_ratio=0.2             0.2669     0.3672    0.4072   0.3970
+    SHy add_ratio=0.4             0.2690     0.3665    0.4103   0.3988
+    SHy random links 0.2          0.2609     0.3686    0.4021   0.3957
+    SHy hierarchical emb.         0.2682     0.3687    0.4077   0.3973
+    SHy flat emb.                 0.2648     0.3604    0.4019   0.3906
+    SHy no time gaps              0.2621     0.3701    0.4003   0.3946
+    SHy + time gaps               0.2695     0.3726    0.4122   0.4021
+    RETAIN all visits             0.2652     0.3567    0.4162   0.3971
+    RETAIN max_visits=3           0.2697     0.3592    0.4218   0.4037
+    RETAIN max_visits=1           0.2531     0.3460    0.4033   0.3876
+    RETAIN 3-digit codes          0.4042     0.5453    0.5725   0.5706
+    =========================  =========  =========  =======  =======
+
+* Under the authors' protocol SHy reaches 0.3731 Recall@20, within 0.01 of
+  the paper's 0.3831, so the implementation reproduces the paper. With
+  validation-based selection SHy beats RETAIN on Recall@20 on every seed
+  (+0.005 to +0.014) while RETAIN has the higher nDCG@10 on every seed.
+* PyHealth's RETAIN scores 0.3506 Recall@20 against 0.2958 in the paper,
+  which does not describe its baseline setup; the paper's 9-point margin
+  over RETAIN shrinks to about 1 point here.
+* False-negative recovery has no measurable effect on accuracy: add_ratio
+  0 to 0.4 and random links all fall inside the noise band.
+* Hierarchical embeddings beat flat ones on all four metrics by a small
+  margin; visit time gaps give a small gain, mostly in nDCG.
+* RETAIN needs only the last three visits; one visit costs about 0.01
+  Recall@20. 3-digit codes are a much easier label space, so those rows
+  are not comparable with full-code rows.
+* omega = 0.04 vs 0 is within noise.
+* The SHy rows above were trained before the commit that keeps the V and
+  E chapters in the ICD-9 hierarchy (previously those codes started one
+  level lower); it changes one of four embedding levels for about a tenth
+  of the codes and nothing else.
 
 Usage:
     python examples/mimic3_next_visit_diagnosis_prediction_shy.py --quick
