@@ -35,9 +35,10 @@ def icd9_ancestor_fn() -> AncestorFn:
 
     Uses :class:`pyhealth.medcode.ICD9CM` (downloaded on first use). Ancestors
     are ordered from the closest (e.g. the 3-digit category) to the farthest
-    (the chapter). The artificial roots of the code graph (``001-999.99``,
-    ``V01-V91.99``, ``E000-E999.9``), shared by whole code families, are left
-    out. Unknown codes have no ancestors.
+    (the chapter). The artificial root ``001-999.99`` above the numeric
+    chapters is left out, so the farthest ancestor is always a chapter
+    (``V01-V91.99`` and ``E000-E999.9`` for V and E codes). Unknown codes have
+    no ancestors.
 
     Returns:
         A function ``code -> list of ancestor codes``.
@@ -56,7 +57,7 @@ def icd9_ancestor_fn() -> AncestorFn:
         std = ICD9CM.standardize(code)
         if std not in icd9:
             return []
-        return [a for a in icd9.get_ancestors(std) if icd9.graph.in_degree(a) > 0]
+        return [a for a in icd9.get_ancestors(std) if a != "001-999.99"]
 
     return ancestors
 
