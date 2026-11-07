@@ -782,7 +782,7 @@ class SHy(BaseModel):
             hidden_dim * num_phenotypes, in_dim, self.num_codes
         )
 
-        output_size = self.get_output_size()
+        output_size = self.label_processor.output_size()
         if num_phenotypes > 1:
             self.w_query = nn.Linear(hidden_dim, key_dim)
             self.w_key = nn.Linear(hidden_dim, key_dim)
