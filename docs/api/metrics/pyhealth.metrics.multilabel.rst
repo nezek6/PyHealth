@@ -5,6 +5,10 @@
 
 .. autofunction:: multilabel_metrics_fn
 
+.. autofunction:: recall_at_k
+
+.. autofunction:: ndcg_at_k
+
 
 Metric order
 ------------

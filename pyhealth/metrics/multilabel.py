@@ -8,6 +8,100 @@ import pyhealth.metrics.calibration as calib
 from pyhealth.metrics import ddi_rate_score
 from pyhealth import BASE_CACHE_PATH as CACHE_PATH
 
+
+def _top_k_indices(y_prob: np.ndarray, k: int) -> np.ndarray:
+    """Indices of the ``k`` highest scores of each row, best first.
+
+    Ties are broken by the lower label index, so results are deterministic.
+    """
+    k = min(k, y_prob.shape[1])
+    order = np.argsort(-y_prob, axis=1, kind="stable")
+    return order[:, :k]
+
+
+def recall_at_k(y_true: np.ndarray, y_prob: np.ndarray, k: int) -> float:
+    """Mean Recall@k over samples for multilabel predictions.
+
+    For each sample, Recall@k is the number of true labels among the ``k``
+    highest-scoring labels, divided by the number of true labels. Samples
+    without any true label are skipped. This is the definition used in
+    diagnosis prediction papers (e.g. SHy, Yu et al., CHIL 2025).
+
+    Args:
+        y_true: Binary label matrix of shape (n_samples, n_labels).
+        y_prob: Scores of shape (n_samples, n_labels); only their order is used.
+        k: Number of top-ranked labels to consider. Must be positive.
+
+    Returns:
+        The mean Recall@k, or 0.0 if no sample has a true label.
+
+    Examples:
+        >>> import numpy as np
+        >>> y_true = np.array([[0, 1, 1], [1, 0, 0]])
+        >>> y_prob = np.array([[0.1, 0.9, 0.2], [0.3, 0.6, 0.1]])
+        >>> recall_at_k(y_true, y_prob, k=1)
+        0.25
+    """
+    if k < 1:
+        raise ValueError(f"k must be positive, got {k}.")
+    y_true = np.asarray(y_true) > 0
+    y_prob = np.asarray(y_prob, dtype=float)
+    n_true = y_true.sum(axis=1)
+    keep = n_true > 0
+    if not keep.any():
+        return 0.0
+    top = _top_k_indices(y_prob[keep], k)
+    hits = np.take_along_axis(y_true[keep], top, axis=1).sum(axis=1)
+    return float(np.mean(hits / n_true[keep]))
+
+
+def ndcg_at_k(y_true: np.ndarray, y_prob: np.ndarray, k: int) -> float:
+    """Mean nDCG@k over samples for multilabel predictions.
+
+    Uses binary gains and a log2 position discount. The ideal DCG places all
+    true labels first (at most ``k`` of them). Samples without any true label
+    are skipped.
+
+    Args:
+        y_true: Binary label matrix of shape (n_samples, n_labels).
+        y_prob: Scores of shape (n_samples, n_labels); only their order is used.
+        k: Number of top-ranked labels to consider. Must be positive.
+
+    Returns:
+        The mean nDCG@k, or 0.0 if no sample has a true label.
+
+    Examples:
+        >>> import numpy as np
+        >>> y_true = np.array([[0, 1, 1]])
+        >>> y_prob = np.array([[0.1, 0.9, 0.8]])
+        >>> ndcg_at_k(y_true, y_prob, k=2)
+        1.0
+    """
+    if k < 1:
+        raise ValueError(f"k must be positive, got {k}.")
+    y_true = np.asarray(y_true) > 0
+    y_prob = np.asarray(y_prob, dtype=float)
+    n_true = y_true.sum(axis=1)
+    keep = n_true > 0
+    if not keep.any():
+        return 0.0
+    top = _top_k_indices(y_prob[keep], k)
+    discounts = 1.0 / np.log2(np.arange(2, top.shape[1] + 2))
+    gains = np.take_along_axis(y_true[keep], top, axis=1).astype(float)
+    dcg = (gains * discounts).sum(axis=1)
+    n_ideal = np.minimum(n_true[keep], top.shape[1])
+    ideal = np.cumsum(discounts)[n_ideal - 1]
+    return float(np.mean(dcg / ideal))
+
+
+def _parse_at_k(metric: str) -> tuple[str, int] | None:
+    """Splits ``"recall@20"`` into ``("recall", 20)``; None if not an @k name."""
+    name, sep, k = metric.partition("@")
+    if not sep or name not in ("recall", "ndcg") or not k.isdigit():
+        return None
+    return name, int(k)
+
+
 def multilabel_metrics_fn(
     y_true: np.ndarray,
     y_prob: np.ndarray,
@@ -50,6 +144,10 @@ def multilabel_metrics_fn(
         - jaccard_samples: Jaccard similarity coefficient score, samples averaged
         - ddi: drug-drug interaction score (specifically for drug-related tasks, such as drug recommendation)
         - hamming_loss: Hamming loss
+        - recall@k: Recall@k for any positive integer k (e.g. recall@20), see
+          :func:`recall_at_k`. Ranking based, ignores the threshold.
+        - ndcg@k: nDCG@k for any positive integer k (e.g. ndcg@10), see
+          :func:`ndcg_at_k`. Ranking based, ignores the threshold.
         - cwECE: classwise ECE (with 20 equal-width bins). Check :func:`pyhealth.metrics.calibration.ece_classwise`.
         - cwECE_adapt: classwise adaptive ECE (with 20 equal-size bins). Check :func:`pyhealth.metrics.calibration.ece_classwise`.
 
@@ -80,6 +178,8 @@ def multilabel_metrics_fn(
         >>> y_prob = np.array([[0.1, 0.9, 0.8], [0.05, 0.95, 0.6]])
         >>> multilabel_metrics_fn(y_true, y_prob, metrics=["accuracy"])
         {'accuracy': 0.5}
+        >>> multilabel_metrics_fn(y_true, y_prob, metrics=["recall@1"])
+        {'recall@1': 0.25}
     """
     if metrics is None:
         metrics = ["pr_auc_samples"]
@@ -218,6 +318,10 @@ def multilabel_metrics_fn(
                 adaptive=metric.endswith("_adapt"),
                 threshold=0.0,
             )
+        elif (at_k := _parse_at_k(metric)) is not None:
+            name, k = at_k
+            fn = recall_at_k if name == "recall" else ndcg_at_k
+            output[metric] = fn(y_true, y_prob, k)
         elif metric in prediction_set_metrics:
             if y_predset is None:
                 continue
